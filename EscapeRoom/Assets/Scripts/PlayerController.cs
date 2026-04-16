@@ -21,7 +21,11 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float crouchHeight = 0.9f;
     [SerializeField] private float crouchTransitionSpeed = 8f;
     
+    [Header("Spawn")]
+    [SerializeField] private Transform spawnPoint;
+    
     private CharacterController characterController;
+    private InteractionSystem interactionSystem;
     private AudioSource audio;
     private PlayerInput playerInput;
     private Vector2 moveInput;
@@ -35,12 +39,15 @@ public class PlayerController : MonoBehaviour
 
     public bool isCrouching;
     public bool isMoving;
+    private bool isFrozen;
+
 
     public event Action InteractPressed;
     
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        interactionSystem = GetComponent<InteractionSystem>();
         audio = GetComponent<AudioSource>();
         playerInput = GetComponent<PlayerInput>();
 
@@ -59,8 +66,16 @@ public class PlayerController : MonoBehaviour
 
     }
     
+    public void OnInteract(InputValue value)
+    {
+        Debug.Log("E pressed!");
+        if (interactionSystem != null)
+            interactionSystem.Interact();
+    }
+    
     public void OnLook(InputValue value)
     {
+        if (isFrozen) return;
         lookInput = value.Get<Vector2>();
     }
 
@@ -77,6 +92,8 @@ public class PlayerController : MonoBehaviour
 
     public void OnCrouch(InputValue value)
     {
+        if (isFrozen) return;
+        Debug.Log("C pressed!");
         if (!value.isPressed) return;
 
         isCrouching = !isCrouching;
@@ -94,6 +111,7 @@ public class PlayerController : MonoBehaviour
 
     public void OnMove(InputValue value)
     {
+        if (isFrozen) return;
         moveInput = value.Get<Vector2>();
     }
     
@@ -116,14 +134,40 @@ public class PlayerController : MonoBehaviour
     
     public void FreezePlayer()
     {
-        enabled = false;
-        characterController.enabled = false;
-
-        if (playerInput != null)
-            playerInput.enabled = false;
-
-        UnlockCursor();
+        isFrozen = true;
+        // if using Rigidbody:
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
     }
+    
+    public void UnfreezePlayer()
+    {
+        isFrozen = false;
+    }
+    
+    public void ResetPlayer()
+    {
+        UnfreezePlayer();
+
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.position = spawnPoint.position;
+            rb.rotation = spawnPoint.rotation;
+        }
+        else
+        {
+            transform.position = spawnPoint.position;
+            transform.rotation = spawnPoint.rotation;
+        }
+    }
+
     
     private void LockCursor()
     {
@@ -137,9 +181,15 @@ public class PlayerController : MonoBehaviour
         Cursor.visible = true;
     }
 
-    private void OnCollisionEnter(Collision other)
+    // private void OnCollisionEnter(Collision other)
+    // {
+    //     if (other.gameObject.CompareTag("Enemy"))
+    //         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    // }
+
+    private void OnTriggerEnter(Collider other)
     {
-        if (other.gameObject.CompareTag("Enemy"))
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        if (other.gameObject.CompareTag("WinTrigger"))
+            GameManager.Instance.OnPlayerEscaped();
     }
 }

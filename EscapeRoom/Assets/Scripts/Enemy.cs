@@ -30,6 +30,9 @@ public class GrannyAI : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private Transform eyeTransform; 
+    
+    [Header("StartPoint")]
+    [SerializeField] private Transform startPoint;
 
     private NavMeshAgent agent;
     private AudioSource audioSource;
@@ -49,12 +52,18 @@ public class GrannyAI : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
         audioSource = GetComponent<AudioSource>();
-
-        // Auto-find player by tag
+        
         GameObject playerGO = GameObject.FindGameObjectWithTag("Player");
         if (playerGO != null) player = playerGO.transform;
 
         if (eyeTransform == null) eyeTransform = transform; // fallback
+    }
+
+    private void Start()
+    {
+        patrolSpeed *= GameManager.Instance.DifficultyScale;
+        investigateSpeed *= GameManager.Instance.DifficultyScale;
+        chaseSpeed *= GameManager.Instance.DifficultyScale;
     }
 
     private void Update()
@@ -75,9 +84,9 @@ public class GrannyAI : MonoBehaviour
             case AIState.Chase:
                 StateChase();
                 break;
-            // case AIState.Attack:
-            //     StateAttack();
-            //     break;
+            case AIState.Attack:
+                StateAttack();
+                break;
         }
 
         // Vision check runs every frame regardless of state
@@ -153,11 +162,11 @@ public class GrannyAI : MonoBehaviour
             agent.SetDestination(player.position);
         }
         
-        // if (dist <= attackRange)
-        // {
-        //     TransitionTo(AIState.Attack);
-        //     return;
-        // }
+        if (dist <= attackRange)
+        {
+            TransitionTo(AIState.Attack);
+            return;
+        }
         
         if (!CanSeePlayer() && !hasTarget)
         {
@@ -169,7 +178,18 @@ public class GrannyAI : MonoBehaviour
 
     private void StateAttack()
     {
-        
+        if (attackTriggered) return;
+        attackTriggered = true;
+ 
+        agent.ResetPath();
+ 
+        StartCoroutine(AttackDelay());
+    }
+    
+    private IEnumerator AttackDelay()
+    {
+        yield return new WaitForSeconds(attackDelay);
+        GameManager.Instance?.OnPlayerCaught();
     }
 
     private void TransitionTo(AIState newState)
@@ -217,6 +237,31 @@ public class GrannyAI : MonoBehaviour
 
         return false;
     }
+    
+    public void ApplyDifficultyMultiplier(float multiplier)
+    {
+        viewDistance    *= multiplier;
+        viewAngle        = Mathf.Min(viewAngle * multiplier, 170f);
+        chaseSpeed      *= multiplier;
+        // hearingMemoryTime *= multiplier;
+        patrolSpeed     *= Mathf.Sqrt(multiplier); // gentler patrol scaling
+    }
+    
+    public void ResetAI()
+    {
+        if (agent != null)
+        {
+            agent.Warp(startPoint.position);
+            agent.ResetPath();
+            agent.isStopped = false;
+        }
+
+        transform.position = startPoint.position;
+        transform.rotation = startPoint.rotation;
+
+        CurrentState = AIState.Patrol;
+    }
+
 
     private void OnDrawGizmosSelected()
     {
