@@ -20,6 +20,15 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float standHeight = 1.8f;
     [SerializeField] private float crouchHeight = 0.9f;
     [SerializeField] private float crouchTransitionSpeed = 8f;
+    [SerializeField] private float standCenterY;
+    
+    [Header("Footstep Noise")]
+    [SerializeField] private AudioClip[] walkClips;
+    [SerializeField] private AudioClip[] crouchClips;
+    [SerializeField] private float walkStepInterval   = 0.5f;
+    [SerializeField] private float crouchStepInterval = 0.9f;
+    [SerializeField] private float walkNoiseRadius   = 12f;
+    [SerializeField] private float crouchNoiseRadius = 4f;
     
     [Header("Spawn")]
     [SerializeField] private Transform spawnPoint;
@@ -36,13 +45,12 @@ public class PlayerController : MonoBehaviour
     private float cameraPitch;
     private float stepTimer;
     private float targetHeight;
+    
 
     public bool isCrouching;
     public bool isMoving;
     private bool isFrozen;
-
-
-    public event Action InteractPressed;
+    
     
     private void Awake()
     {
@@ -50,24 +58,27 @@ public class PlayerController : MonoBehaviour
         interactionSystem = GetComponent<InteractionSystem>();
         audio = GetComponent<AudioSource>();
         playerInput = GetComponent<PlayerInput>();
-
-        // targetHeight = standHeight;
-        // characterController.height = standHeight;
-        // characterController.center = new Vector3(0f, characterController.height / 2f, 0f);
+        
+        standHeight = characterController.height;
+        crouchHeight = standHeight * 0.5f;
+        standCenterY = characterController.center.y;
+        targetHeight = standHeight;
 
         LockCursor();
     }
 
     private void Update()
     {
+        if (isFrozen) return;
         HandleLook();
-        // HandleCrouch();
+        HandleCrouch();
         HandleMove();
-
+        HandleFootsteps();
     }
     
     public void OnInteract(InputValue value)
     {
+        if (isFrozen) return;
         Debug.Log("E pressed!");
         if (interactionSystem != null)
             interactionSystem.Interact();
@@ -75,7 +86,6 @@ public class PlayerController : MonoBehaviour
     
     public void OnLook(InputValue value)
     {
-        if (isFrozen) return;
         lookInput = value.Get<Vector2>();
     }
 
@@ -92,7 +102,6 @@ public class PlayerController : MonoBehaviour
 
     public void OnCrouch(InputValue value)
     {
-        if (isFrozen) return;
         Debug.Log("C pressed!");
         if (!value.isPressed) return;
 
@@ -102,16 +111,24 @@ public class PlayerController : MonoBehaviour
     
     private void HandleCrouch()
     {
-        if (!Mathf.Approximately(characterController.height, targetHeight))
+        if (Mathf.Abs(characterController.height - targetHeight) > 0.01f)
         {
-            characterController.height = Mathf.Lerp(characterController.height, targetHeight, Time.deltaTime * crouchTransitionSpeed);
-            characterController.center = new Vector3(0f, characterController.height / 2f, 0f);
+            float newHeight = Mathf.Lerp(characterController.height, targetHeight, Time.deltaTime * crouchTransitionSpeed);
+
+            if (Mathf.Abs(newHeight - targetHeight) < 0.01f)
+                newHeight = targetHeight;
+
+            characterController.height = newHeight;
+
+            // keep the original center setup
+            Vector3 center = characterController.center;
+            center.y = standCenterY;
+            characterController.center = center;
         }
     }
 
     public void OnMove(InputValue value)
     {
-        if (isFrozen) return;
         moveInput = value.Get<Vector2>();
     }
     
@@ -132,40 +149,59 @@ public class PlayerController : MonoBehaviour
         characterController.Move(move * Time.deltaTime);
     }
     
+    private void HandleFootsteps()
+    {
+        if (!isMoving || !characterController.isGrounded) return;
+ 
+        float interval = isCrouching ? crouchStepInterval : walkStepInterval;
+        stepTimer += Time.deltaTime;
+ 
+        if (stepTimer >= interval)
+        {
+            stepTimer = 0f;
+            PlayFootstepAudio();
+            EmitNoise();
+        }
+    }
+    
+    private void PlayFootstepAudio()
+    {
+        AudioClip[] clips = isCrouching ? crouchClips : walkClips;
+        if (clips == null || clips.Length == 0) return;
+        audio.PlayOneShot(clips[UnityEngine.Random.Range(0, clips.Length)]);
+    }
+ 
+    private void EmitNoise()
+    {
+        float radius = isCrouching ? crouchNoiseRadius : walkNoiseRadius;
+        Collider[] hits = Physics.OverlapSphere(transform.position, radius);
+        foreach (var hit in hits)
+        {
+            GrannyAI granny = hit.GetComponent<GrannyAI>();
+            if (granny != null)
+                granny.AlertToSound(transform.position);
+        }
+    }
+    
     public void FreezePlayer()
     {
         isFrozen = true;
-        // if using Rigidbody:
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
+        if (characterController != null)
+            characterController.enabled = false;
     }
     
     public void UnfreezePlayer()
     {
         isFrozen = false;
+        if (characterController != null)
+            characterController.enabled = true;
     }
     
-    public void ResetPlayer()
+    public void GameStarting()
     {
+        transform.position = spawnPoint.position;
+        transform.rotation = spawnPoint.rotation;
         UnfreezePlayer();
-
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-            rb.position = spawnPoint.position;
-            rb.rotation = spawnPoint.rotation;
-        }
-        else
-        {
-            transform.position = spawnPoint.position;
-            transform.rotation = spawnPoint.rotation;
-        }
     }
 
     
@@ -180,12 +216,6 @@ public class PlayerController : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
-
-    // private void OnCollisionEnter(Collision other)
-    // {
-    //     if (other.gameObject.CompareTag("Enemy"))
-    //         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-    // }
 
     private void OnTriggerEnter(Collider other)
     {

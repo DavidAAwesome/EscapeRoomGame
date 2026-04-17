@@ -6,7 +6,7 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
-    public enum State { MainMenu, Playing, Caught, Escaped }
+    public enum State { MainMenu, Playing, Paused, Caught, Escaped }
     public State CurrentState { get; private set; } = State.MainMenu;
 
     public bool IsPlaying => CurrentState == State.Playing;
@@ -16,6 +16,7 @@ public class GameManager : MonoBehaviour
 
     [Header("UI")]
     [SerializeField] private GameObject mainMenuPanel;
+    [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject hudPanel;
     [SerializeField] private GameObject caughtPanel;
     [SerializeField] private GameObject escapedPanel;
@@ -56,8 +57,25 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        SetState(State.Playing);
+        Time.timeScale = 1f;
+        SetState(State.MainMenu);
     }
+    
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (CurrentState == State.Playing)
+            {
+                PauseGame();
+            }
+            else if (CurrentState == State.Paused)
+            {
+                ResumeGame();
+            }
+        }
+    }
+
 
     void SetState(State newState)
     {
@@ -65,25 +83,38 @@ public class GameManager : MonoBehaviour
 
         mainMenuPanel?.SetActive(false);
         hudPanel?.SetActive(false);
+        pausePanel?.SetActive(false);
         caughtPanel?.SetActive(false);
         escapedPanel?.SetActive(false);
 
         switch (newState)
         {
             case State.MainMenu:
+                Time.timeScale = 1f;
                 mainMenuPanel?.SetActive(true);
                 PlayMusic(musicMenu);
                 UnlockCursor();
+                FreezePlayer();
                 break;
 
             case State.Playing:
+                Time.timeScale = 1f;
                 hudPanel?.SetActive(true);
                 PlayMusic(musicGame);
                 LockCursor();
                 UpdateHUD();
                 break;
+            
+            case State.Paused:
+                Time.timeScale = 0f;
+                hudPanel?.SetActive(true);
+                pausePanel?.SetActive(true);
+                UnlockCursor();
+                FreezePlayer();
+                break;
 
             case State.Caught:
+                Time.timeScale = 1f;
                 Debug.Log("Caught!");
                 caughtPanel?.SetActive(true);
                 PlayMusic(musicCaught);
@@ -117,23 +148,13 @@ public class GameManager : MonoBehaviour
 
     IEnumerator StartGameRoutine()
     {
+        Time.timeScale = 1f;
+        
+        yield return Fade(0f, 1f);
+        
         foreach (var listener in FindObjectsOfType<MonoBehaviour>(true))
         {
             listener.SendMessage("GameStarting", SendMessageOptions.DontRequireReceiver);
-        }
-        
-        yield return Fade(0f, 1f);
-
-        PlayerController player = FindObjectOfType<PlayerController>();
-        if (player != null)
-        {
-            player.ResetPlayer();
-        }
-
-        foreach (var enemy in FindObjectsOfType<GrannyAI>())
-        {
-            enemy.ApplyDifficultyMultiplier(DifficultyScale);
-            enemy.ResetAI();
         }
 
         PuzzleManager.Instance?.ResetAllPuzzles();
@@ -161,17 +182,34 @@ public class GameManager : MonoBehaviour
 
     IEnumerator MenuRoutine()
     {
+        Time.timeScale = 1f;
         yield return Fade(0f, 1f);
         SetState(State.MainMenu);
         yield return Fade(1f, 0f);
     }
+    
+    public void PauseGame()
+    {
+        if (CurrentState != State.Playing)
+            return;
+
+        SetState(State.Paused);
+    }
+
+    public void ResumeGame()
+    {
+        if (CurrentState != State.Paused)
+            return;
+
+        SetState(State.Playing);
+    }
+
 
     public void OnPlayerCaught()
     {
         if (!IsPlaying) return;
 
-        var player = FindObjectOfType<PlayerController>();
-        player?.FreezePlayer();
+        FreezePlayer();
 
         StartCoroutine(DelayedState(State.Caught, 1.2f));
     }
@@ -179,8 +217,15 @@ public class GameManager : MonoBehaviour
     public void OnPlayerEscaped()
     {
         if (!IsPlaying) return;
+        FreezePlayer();
 
         StartCoroutine(DelayedState(State.Escaped, 0.5f));
+    }
+
+    private void FreezePlayer()
+    {
+        var player = FindObjectOfType<PlayerController>();
+        player?.FreezePlayer();
     }
 
     public void OnPuzzleProgress(int solved, int total)

@@ -17,7 +17,8 @@ public class GrannyAI : MonoBehaviour
     [Header("Detection")]
     [SerializeField] private float viewDistance = 12f;
     [SerializeField] private float viewAngle = 90f;   
-    [SerializeField] private float chaseDistance = 20f;   
+    [SerializeField] private float chaseDistance = 20f;
+    [SerializeField] private float hearingMemoryTime = 8f;
 
     [Header("Movement Speeds")]
     [SerializeField] private float patrolSpeed = 1.5f;
@@ -27,6 +28,12 @@ public class GrannyAI : MonoBehaviour
     [Header("Attack")]
     [SerializeField] private float attackRange = 1.5f;
     [SerializeField] private float attackDelay = 0.4f;   
+    
+    [Header("Audio")]
+    [SerializeField] private AudioClip clipIdle;
+    [SerializeField] private AudioClip clipAlert;
+    [SerializeField] private AudioClip clipChase;
+    [SerializeField] private AudioClip clipAttack;
 
     [Header("References")]
     [SerializeField] private Transform eyeTransform; 
@@ -35,7 +42,7 @@ public class GrannyAI : MonoBehaviour
     [SerializeField] private Transform startPoint;
 
     private NavMeshAgent agent;
-    private AudioSource audioSource;
+    private AudioSource audio;
     private Transform player;
 
     private int patrolIndex;
@@ -51,7 +58,7 @@ public class GrannyAI : MonoBehaviour
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
-        audioSource = GetComponent<AudioSource>();
+        audio = GetComponent<AudioSource>();
         
         GameObject playerGO = GameObject.FindGameObjectWithTag("Player");
         if (playerGO != null) player = playerGO.transform;
@@ -132,6 +139,7 @@ public class GrannyAI : MonoBehaviour
     private IEnumerator InvestigateRoutine()
     {
         TransitionTo(AIState.Patrol); // prevent re-entry
+        PlayClip(clipIdle);
 
         float t = 0f;
         Quaternion startRot = transform.rotation;
@@ -182,6 +190,7 @@ public class GrannyAI : MonoBehaviour
         attackTriggered = true;
  
         agent.ResetPath();
+        PlayClip(clipAttack);
  
         StartCoroutine(AttackDelay());
     }
@@ -202,13 +211,16 @@ public class GrannyAI : MonoBehaviour
         switch (newState)
         {
             case AIState.Patrol:
+                PlayClip(clipIdle);
                 if (patrolPoints != null && patrolPoints.Length > 0)
                     agent.SetDestination(patrolPoints[patrolIndex].position);
                 break;
             case AIState.Investigate:
+                PlayClip(clipAlert);
                 agent.SetDestination(lastKnownPosition);
                 break;
             case AIState.Chase:
+                PlayClip(clipChase);
                 break;
             case AIState.Attack:
                 break;
@@ -238,6 +250,40 @@ public class GrannyAI : MonoBehaviour
         return false;
     }
     
+    public void AlertToSound(Vector3 worldPosition)
+    {
+        lastKnownPosition = worldPosition;
+        hasTarget         = true;
+        soundAlertTimer   = hearingMemoryTime;
+ 
+        if (CurrentState == AIState.Patrol || CurrentState == AIState.Investigate)
+            TransitionTo(AIState.Investigate);
+ 
+        if (CurrentState == AIState.Chase)
+            agent.SetDestination(worldPosition); // update chase target
+    }
+ 
+    private void TickSoundMemory()
+    {
+        if (!hasTarget) return;
+ 
+        soundAlertTimer -= Time.deltaTime;
+        if (soundAlertTimer <= 0f)
+            hasTarget = false;
+    }
+ 
+    private void PlayClip(AudioClip clip)
+    {
+        if (clip == null || audio == null) return;
+        if (audio.clip == clip && audio.isPlaying) return;
+ 
+        audio.clip = clip;
+        audio.loop = (clip == clipIdle || clip == clipChase || clip == clipPatrolLoop());
+        audio.Play();
+    }
+    
+    private AudioClip clipPatrolLoop() => clipIdle;
+    
     public void ApplyDifficultyMultiplier(float multiplier)
     {
         viewDistance    *= multiplier;
@@ -247,8 +293,10 @@ public class GrannyAI : MonoBehaviour
         patrolSpeed     *= Mathf.Sqrt(multiplier); // gentler patrol scaling
     }
     
-    public void ResetAI()
+    public void GameStarting()
     {
+        ApplyDifficultyMultiplier(GameManager.Instance.DifficultyScale);
+        
         if (agent != null)
         {
             agent.Warp(startPoint.position);
