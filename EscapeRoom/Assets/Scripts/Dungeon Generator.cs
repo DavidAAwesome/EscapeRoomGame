@@ -49,10 +49,14 @@ public class DungeonGenerator : MonoBehaviour
                 
                 var newRoom = Instantiate(room, new Vector3(i * offset.x, 0, -j * offset.y), Quaternion.identity, transform).GetComponent<RoomBehavior>();
                 newRoom.UpdateRoom(board[Mathf.FloorToInt(i + j * size.x)].status);
+                    int x = Mathf.FloorToInt(i + j * size.x);
 
                 newRoom.name += " " + i + "-" + j;
+                    Debug.Log($"Room {i},{j} | U:{board[x].status[0]} D:{board[x].status[1]} R:{board[x].status[2]} L:{board[x].status[3]} at {newRoom.transform.position}");
+                    Debug.DrawRay(newRoom.transform.position, Vector3.forward * 2, Color.blue, 10f);
+                    Debug.DrawRay(newRoom.transform.position, Vector3.back * 2, Color.red, 10f);
 
-            }
+                }
 
             }
             
@@ -87,10 +91,10 @@ public class DungeonGenerator : MonoBehaviour
 
             board[currentCell].visited = true;
 
-            if(currentCell == board.Count - 1)
-            {
-                break; 
-            }
+           if(currentCell == board.Count - 1)
+           {
+               break; 
+           }
 
 
             //Check the cell's neighbors
