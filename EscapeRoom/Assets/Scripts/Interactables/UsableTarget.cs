@@ -34,14 +34,14 @@ public class UsableTarget : MonoBehaviour, IInteractable
 
         if (!string.IsNullOrEmpty(requiredItem))
         {
-            if (!player.HasItem(requiredItem))
+            if (!player.HasSelectedItem(requiredItem))
             {
                 Debug.Log("Missing item: " + requiredItem);
                 return;
             }
 
             if (consumeItem)
-                player.ConsumeItem(requiredItem);
+                player.ConsumeSelectedItem();
         }
 
         used = true;

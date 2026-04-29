@@ -4,6 +4,8 @@ using TMPro;
 
 public class InteractionSystem : MonoBehaviour
 {
+    public const int SLOT_COUNT = 3;
+
     [Header("Raycast")]
     [SerializeField] private Camera playerCamera;
     [SerializeField] private float interactRange = 2.5f;
@@ -12,11 +14,21 @@ public class InteractionSystem : MonoBehaviour
     [Header("UI")]
     [SerializeField] private TextMeshProUGUI interactPromptText;
 
-    private readonly HashSet<string> inventory = new HashSet<string>();
+    private HashSet<string> inventory = new HashSet<string>();
+    private string[] slots = new string[SLOT_COUNT];
 
+    private int selectedSlot;
     private IInteractable currentTarget;
 
-    private void Update()
+    public int SelectedSlot => selectedSlot;
+    public string SelectedItem => slots[selectedSlot];
+    
+    public event System.Action<string[]> OnInventoryChanged;
+    public event System.Action<int> OnSelectionChanged;
+
+    public string[] Slots => slots;
+
+    void Update()
     {
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
@@ -26,21 +38,14 @@ public class InteractionSystem : MonoBehaviour
 
     public void Interact()
     {
-        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
-            return;
-
         if (currentTarget != null)
             currentTarget.OnInteract(this);
     }
 
-    private void DetectInteractable()
+    void DetectInteractable()
     {
         if (playerCamera == null)
-        {
-            currentTarget = null;
-            ShowPrompt(null);
             return;
-        }
 
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
 
@@ -60,19 +65,65 @@ public class InteractionSystem : MonoBehaviour
         ShowPrompt(null);
     }
 
+    public void SelectSlot(int index)
+    {
+        index = Mathf.Clamp(index, 0, SLOT_COUNT - 1);
+
+        if (selectedSlot == index)
+            return;
+
+        selectedSlot = index;
+        Debug.Log("Selected slot: " + (selectedSlot + 1));
+
+        OnSelectionChanged?.Invoke(selectedSlot);
+    }
+
+    public void CycleSlot(int direction)
+    {
+        int nextSlot = selectedSlot + direction;
+
+        if (nextSlot < 0)
+            nextSlot = SLOT_COUNT - 1;
+        else if (nextSlot >= SLOT_COUNT)
+            nextSlot = 0;
+
+        SelectSlot(nextSlot);
+    }
+
+    public bool AddItem(string itemID)
+    {
+        if (string.IsNullOrEmpty(itemID))
+            return false;
+
+        if (inventory.Contains(itemID))
+            return false;
+
+        for (int i = 0; i < SLOT_COUNT; i++)
+        {
+            if (string.IsNullOrEmpty(slots[i]))
+            {
+                slots[i] = itemID;
+                inventory.Add(itemID);
+                OnInventoryChanged?.Invoke(slots);
+
+                Debug.Log("Picked up: " + itemID);
+                GameManager.Instance?.OnItemPickedUp(itemID);
+                return true;
+            }
+        }
+
+        Debug.Log("Inventory is full");
+        return false;
+    }
+
     public bool HasItem(string itemID)
     {
         return inventory.Contains(itemID);
     }
 
-    public void AddItem(string itemID)
+    public bool HasSelectedItem(string itemID)
     {
-        if (string.IsNullOrEmpty(itemID))
-            return;
-
-        inventory.Add(itemID);
-        Debug.Log("Picked up: " + itemID);
-        GameManager.Instance?.OnItemPickedUp(itemID);
+        return SelectedItem == itemID;
     }
 
     public bool ConsumeItem(string itemID)
@@ -81,16 +132,44 @@ public class InteractionSystem : MonoBehaviour
             return false;
 
         inventory.Remove(itemID);
+        OnInventoryChanged?.Invoke(slots);
+
+        for (int i = 0; i < SLOT_COUNT; i++)
+        {
+            if (slots[i] == itemID)
+            {
+                slots[i] = null;
+                break;
+            }
+        }
+
         Debug.Log("Used: " + itemID);
         return true;
     }
 
-    public IEnumerable<string> GetInventory()
+    public bool ConsumeSelectedItem()
     {
-        return inventory;
+        string itemID = SelectedItem;
+
+        if (string.IsNullOrEmpty(itemID))
+            return false;
+
+        return ConsumeItem(itemID);
     }
 
-    private void ShowPrompt(string text)
+    public void ClearInventory()
+    {
+        inventory.Clear();
+        OnInventoryChanged?.Invoke(slots);
+        OnSelectionChanged?.Invoke(selectedSlot);
+
+        for (int i = 0; i < SLOT_COUNT; i++)
+            slots[i] = null;
+
+        selectedSlot = 0;
+    }
+
+    void ShowPrompt(string text)
     {
         if (interactPromptText == null)
             return;
@@ -102,8 +181,3 @@ public class InteractionSystem : MonoBehaviour
             interactPromptText.text = text;
     }
 }
-
-
-
-
-

@@ -200,6 +200,9 @@ public class GameManager : MonoBehaviour
     {
         if (CurrentState != State.Paused)
             return;
+        
+        var player = FindObjectOfType<PlayerController>();
+        player?.UnfreezePlayer();
 
         SetState(State.Playing);
     }
