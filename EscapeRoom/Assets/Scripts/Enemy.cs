@@ -54,6 +54,7 @@ public class GrannyAI : MonoBehaviour
     private float soundAlertTimer;
 
     private bool attackTriggered;
+    private PlayerController playerController;
 
     private void Awake()
     {
@@ -61,7 +62,12 @@ public class GrannyAI : MonoBehaviour
         audio = GetComponent<AudioSource>();
         
         GameObject playerGO = GameObject.FindGameObjectWithTag("Player");
-        if (playerGO != null) player = playerGO.transform;
+        if (playerGO != null)
+        {
+            player = playerGO.transform;
+            playerController = player.GetComponent<PlayerController>();
+
+        }
 
         if (eyeTransform == null) eyeTransform = transform; // fallback
     }
@@ -160,7 +166,7 @@ public class GrannyAI : MonoBehaviour
     {
         agent.speed = chaseSpeed;
 
-        if (player == null) { TransitionTo(AIState.Patrol); return; }
+        if (player == null || playerController.IsHiding) { TransitionTo(AIState.Patrol); return; }
 
         float dist = Vector3.Distance(transform.position, player.position);
         
@@ -230,7 +236,7 @@ public class GrannyAI : MonoBehaviour
 
     private bool CanSeePlayer()
     {
-        if (player == null) return false;
+        if (player == null || playerController.IsHiding) return false;
 
         Vector3 dirToPlayer = (player.position - eyeTransform.position);
         float dist = dirToPlayer.magnitude;

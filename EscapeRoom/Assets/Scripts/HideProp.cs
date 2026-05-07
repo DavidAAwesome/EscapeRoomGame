@@ -4,14 +4,14 @@ namespace KTintercativeProp
 {
     public class HideProp : MonoBehaviour, IInteractable
     {
-        [Header("Hiding Spots")]
+        [Header("Hiding")]
         [SerializeField] private Transform hideSpot;
         [SerializeField] private Transform exitSpot;
 
-        [Header("UI")]
-        [SerializeField] private GameObject icon;
+        [Header("Prompt")]
         [SerializeField] private string enterPrompt = "Press E to hide";
         [SerializeField] private string exitPrompt = "Press E to leave";
+        [SerializeField] private GameObject icon;
 
         [Header("Audio")]
         [SerializeField] private AudioClip enterSound;
@@ -21,7 +21,6 @@ namespace KTintercativeProp
         [SerializeField] private float noiseRadius = 4f;
 
         private AudioSource audioSource;
-        private bool playerNearby;
         private bool playerInside;
         private PlayerController hiddenPlayer;
 
@@ -39,12 +38,17 @@ namespace KTintercativeProp
         void Update()
         {
             if (icon != null)
-                icon.SetActive(playerNearby || playerInside);
+                icon.SetActive(playerInside);
         }
 
         public string GetPrompt(InteractionSystem player)
         {
-            return playerInside ? exitPrompt : enterPrompt;
+            PlayerController playerController = player.GetComponent<PlayerController>();
+
+            if (playerController != null && playerController.IsHiding)
+                return exitPrompt;
+
+            return enterPrompt;
         }
 
         public void OnInteract(InteractionSystem player)
@@ -54,39 +58,34 @@ namespace KTintercativeProp
             if (playerController == null)
                 return;
 
-            if (!playerInside)
+            if (playerController.IsHiding)
             {
-                hiddenPlayer = playerController;
-                playerInside = true;
-
-                PlaySound(enterSound);
-                playerController.HidePlayer(hideSpot);
-
-                // Optional: hiding makes a small noise
-                EmitNoise();
-            }
-            else
-            {
+                playerController.LeaveHiding();
                 playerInside = false;
-
-                PlaySound(exitSound);
-
-                if (hiddenPlayer != null)
-                    hiddenPlayer.LeaveHiding(exitSpot);
-
                 hiddenPlayer = null;
-
-                // Leaving can also alert nearby enemies
+                PlaySound(exitSound);
                 EmitNoise();
+                return;
             }
+
+            hiddenPlayer = playerController;
+            playerInside = true;
+
+            playerController.HidePlayer(hideSpot, exitSpot);
+            PlaySound(enterSound);
+            EmitNoise();
+        }
+
+        void GameStarting()
+        {
+            playerInside = false;
+            hiddenPlayer = null;
         }
 
         private void PlaySound(AudioClip clip)
         {
-            if (audioSource == null || clip == null)
-                return;
-
-            audioSource.PlayOneShot(clip);
+            if (audioSource != null && clip != null)
+                audioSource.PlayOneShot(clip);
         }
 
         private void EmitNoise()
@@ -100,18 +99,6 @@ namespace KTintercativeProp
                 if (granny != null)
                     granny.AlertToSound(transform.position);
             }
-        }
-
-        private void OnTriggerEnter(Collider other)
-        {
-            if (other.CompareTag("Player"))
-                playerNearby = true;
-        }
-
-        private void OnTriggerExit(Collider other)
-        {
-            if (other.CompareTag("Player") && !playerInside)
-                playerNearby = false;
         }
     }
 }

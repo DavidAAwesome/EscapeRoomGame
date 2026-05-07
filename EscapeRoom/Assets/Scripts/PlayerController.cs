@@ -56,7 +56,7 @@ public class PlayerController : MonoBehaviour
     
     private bool isHiding;
     private Renderer[] playerRenderers;
-    private Collider[] playerColliders;
+    private Transform currentHideExit;
 
     public bool IsHiding => isHiding;
 
@@ -73,14 +73,14 @@ public class PlayerController : MonoBehaviour
         targetHeight = standHeight;
         
         playerRenderers = GetComponentsInChildren<Renderer>();
-        playerColliders = GetComponentsInChildren<Collider>();
 
         LockCursor();
     }
 
     void Update()
     {
-        if (isFrozen && !isHiding) return;
+        if (isFrozen)
+            return;
 
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
@@ -307,6 +307,8 @@ public class PlayerController : MonoBehaviour
 
     public void FreezePlayer()
     {
+        ForceLeaveHiding();
+
         isFrozen = true;
         moveInput = Vector2.zero;
         lookInput = Vector2.zero;
@@ -327,48 +329,83 @@ public class PlayerController : MonoBehaviour
         LockCursor();
     }
     
-    public void HidePlayer(Transform hideSpot)
+    public void HidePlayer(Transform hideSpot, Transform exitSpot)
     {
         isHiding = true;
-        isFrozen = true;
+        currentHideExit = exitSpot;
 
         moveInput = Vector2.zero;
         verticalVelocity = 0f;
 
         if (characterController != null)
+        {
             characterController.enabled = false;
-
-        transform.position = hideSpot.position;
-        transform.rotation = hideSpot.rotation;
+            transform.position = hideSpot.position;
+            transform.rotation = hideSpot.rotation;
+            characterController.enabled = true;
+        }
+        else
+        {
+            transform.position = hideSpot.position;
+            transform.rotation = hideSpot.rotation;
+        }
 
         foreach (Renderer r in playerRenderers)
-            r.enabled = false;
-
-        // Keep camera working, but stop the player collider/movement
-        foreach (Collider c in playerColliders)
-            c.enabled = false;
+        {
+            if (r != null)
+                r.enabled = false;
+        }
 
         LockCursor();
     }
 
-    public void LeaveHiding(Transform exitSpot)
+    public void LeaveHiding()
     {
-        isHiding = false;
-        isFrozen = false;
+        if (!isHiding)
+            return;
 
-        transform.position = exitSpot.position;
-        transform.rotation = exitSpot.rotation;
+        isHiding = false;
+
+        if (currentHideExit != null)
+        {
+            if (characterController != null)
+            {
+                characterController.enabled = false;
+                transform.position = currentHideExit.position;
+                transform.rotation = currentHideExit.rotation;
+                characterController.enabled = true;
+            }
+            else
+            {
+                transform.position = currentHideExit.position;
+                transform.rotation = currentHideExit.rotation;
+            }
+        }
 
         foreach (Renderer r in playerRenderers)
-            r.enabled = true;
+        {
+            if (r != null)
+                r.enabled = true;
+        }
 
-        foreach (Collider c in playerColliders)
-            c.enabled = true;
-
-        if (characterController != null)
-            characterController.enabled = true;
-
+        currentHideExit = null;
         LockCursor();
+    }
+
+    public void ForceLeaveHiding()
+    {
+        if (!isHiding)
+            return;
+
+        isHiding = false;
+
+        foreach (Renderer r in playerRenderers)
+        {
+            if (r != null)
+                r.enabled = true;
+        }
+
+        currentHideExit = null;
     }
 
     public bool IsVisibleToEnemy()
@@ -378,6 +415,8 @@ public class PlayerController : MonoBehaviour
 
     public void GameStarting()
     {
+        ForceLeaveHiding();
+
         if (spawnPoint != null)
         {
             if (characterController != null)
@@ -392,7 +431,6 @@ public class PlayerController : MonoBehaviour
 
         moveInput = Vector2.zero;
         lookInput = Vector2.zero;
-        smoothedControllerLook = Vector2.zero;
         verticalVelocity = 0f;
         stepTimer = 0f;
 
@@ -407,8 +445,6 @@ public class PlayerController : MonoBehaviour
             center.y = standCenterY;
             characterController.center = center;
         }
-
-        interactionSystem.ClearInventory();
 
         UnfreezePlayer();
     }
