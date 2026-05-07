@@ -1,0 +1,29 @@
+fileFormatVersion: 2
+guid: 6fe079e8f14872e4abc40e2868f7c8e0
+AudioImporter:
+  externalObjects: {}
+  serializedVersion: 6
+  defaultSettings:
+    loadType: 0
+    sampleRateSetting: 0
+    sampleRateOverride: 44100
+    compressionFormat: 1
+    quality: 1
+    conversionMode: 0
+  platformSettingOverrides: {}
+  forceToMono: 0
+  normalize: 1
+  preloadAudioData: 1
+  loadInBackground: 0
+  ambisonic: 0
+  3D: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 280256
+  packageName: kcisa - Korean Traditional Interactive Props Vol.2
+  packageVersion: 1.0
+  assetPath: Assets/KTinteractiveProp/Volum 02/Audio/Tabletop_Close.wav
+  uploadId: 652014

@@ -53,6 +53,12 @@ public class PlayerController : MonoBehaviour
     public bool isMoving;
 
     private bool isFrozen;
+    
+    private bool isHiding;
+    private Renderer[] playerRenderers;
+    private Collider[] playerColliders;
+
+    public bool IsHiding => isHiding;
 
     void Awake()
     {
@@ -65,19 +71,25 @@ public class PlayerController : MonoBehaviour
         crouchHeight = standHeight * 0.5f;
         standCenterY = characterController.center.y;
         targetHeight = standHeight;
+        
+        playerRenderers = GetComponentsInChildren<Renderer>();
+        playerColliders = GetComponentsInChildren<Collider>();
 
         LockCursor();
     }
 
     void Update()
     {
-        if (isFrozen)
-            return;
+        if (isFrozen && !isHiding) return;
 
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
             return;
 
         HandleLook();
+
+        if (isHiding)
+            return;
+
         HandleCrouch();
         HandleMove();
         HandleFootsteps();
@@ -313,6 +325,55 @@ public class PlayerController : MonoBehaviour
             characterController.enabled = true;
 
         LockCursor();
+    }
+    
+    public void HidePlayer(Transform hideSpot)
+    {
+        isHiding = true;
+        isFrozen = true;
+
+        moveInput = Vector2.zero;
+        verticalVelocity = 0f;
+
+        if (characterController != null)
+            characterController.enabled = false;
+
+        transform.position = hideSpot.position;
+        transform.rotation = hideSpot.rotation;
+
+        foreach (Renderer r in playerRenderers)
+            r.enabled = false;
+
+        // Keep camera working, but stop the player collider/movement
+        foreach (Collider c in playerColliders)
+            c.enabled = false;
+
+        LockCursor();
+    }
+
+    public void LeaveHiding(Transform exitSpot)
+    {
+        isHiding = false;
+        isFrozen = false;
+
+        transform.position = exitSpot.position;
+        transform.rotation = exitSpot.rotation;
+
+        foreach (Renderer r in playerRenderers)
+            r.enabled = true;
+
+        foreach (Collider c in playerColliders)
+            c.enabled = true;
+
+        if (characterController != null)
+            characterController.enabled = true;
+
+        LockCursor();
+    }
+
+    public bool IsVisibleToEnemy()
+    {
+        return !isHiding;
     }
 
     public void GameStarting()

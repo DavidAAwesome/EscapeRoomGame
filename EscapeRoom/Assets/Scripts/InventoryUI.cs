@@ -10,6 +10,7 @@ public class InventoryUI : MonoBehaviour
     [Header("Slots")]
     [SerializeField] private RectTransform[] slotRoots;
     [SerializeField] private TMP_Text[] slotLabels;
+    [SerializeField] private Image[] slotIcons;
     [SerializeField] private TMP_Text[] slotItemNames;
 
     [Header("Selection")]
@@ -70,6 +71,14 @@ public class InventoryUI : MonoBehaviour
             Image bg = slotRoots[i] != null ? slotRoots[i].GetComponent<Image>() : null;
             if (bg != null)
                 bg.color = hasItem ? filledColor : emptyColor;
+            
+            if (i < slotIcons.Length && slotIcons[i] != null)
+            {
+                Sprite icon = inventorySource.SlotIcons[i];
+
+                slotIcons[i].sprite = icon;
+                slotIcons[i].enabled = icon != null;
+            }
 
             if (i < slotItemNames.Length && slotItemNames[i] != null)
             {

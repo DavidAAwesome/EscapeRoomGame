@@ -14,8 +14,9 @@ public class InteractionSystem : MonoBehaviour
     [Header("UI")]
     [SerializeField] private TextMeshProUGUI interactPromptText;
 
-    private HashSet<string> inventory = new HashSet<string>();
+    public HashSet<string> inventory = new HashSet<string>();
     private string[] slots = new string[SLOT_COUNT];
+    private Sprite[] slotIcons = new Sprite[SLOT_COUNT];
 
     private int selectedSlot;
     private IInteractable currentTarget;
@@ -27,6 +28,7 @@ public class InteractionSystem : MonoBehaviour
     public event System.Action<int> OnSelectionChanged;
 
     public string[] Slots => slots;
+    public Sprite[] SlotIcons => slotIcons;
 
     void Update()
     {
@@ -90,7 +92,7 @@ public class InteractionSystem : MonoBehaviour
         SelectSlot(nextSlot);
     }
 
-    public bool AddItem(string itemID)
+    public bool AddItem(string itemID, Sprite icon)
     {
         if (string.IsNullOrEmpty(itemID))
             return false;
@@ -103,6 +105,7 @@ public class InteractionSystem : MonoBehaviour
             if (string.IsNullOrEmpty(slots[i]))
             {
                 slots[i] = itemID;
+                slotIcons[i] = icon;
                 inventory.Add(itemID);
                 OnInventoryChanged?.Invoke(slots);
 
@@ -139,6 +142,7 @@ public class InteractionSystem : MonoBehaviour
             if (slots[i] == itemID)
             {
                 slots[i] = null;
+                slotIcons[i] = null;
                 break;
             }
         }
@@ -150,6 +154,7 @@ public class InteractionSystem : MonoBehaviour
     public bool ConsumeSelectedItem()
     {
         string itemID = SelectedItem;
+        Debug.Log($"The selected item is {SelectedItem}.");
 
         if (string.IsNullOrEmpty(itemID))
             return false;
@@ -164,7 +169,10 @@ public class InteractionSystem : MonoBehaviour
         OnSelectionChanged?.Invoke(selectedSlot);
 
         for (int i = 0; i < SLOT_COUNT; i++)
+        {
             slots[i] = null;
+            slotIcons[i] = null;
+        }
 
         selectedSlot = 0;
     }

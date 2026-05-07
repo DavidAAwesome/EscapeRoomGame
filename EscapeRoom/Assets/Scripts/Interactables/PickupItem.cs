@@ -1,9 +1,11 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PickupItem : MonoBehaviour, IInteractable
 {
     [SerializeField] private string itemID = "Item";
     [SerializeField] private string promptText = "Press E to pick up";
+    [SerializeField] private Sprite icon;
 
     public void GameStarting()
     {
@@ -19,7 +21,7 @@ public class PickupItem : MonoBehaviour, IInteractable
 
     public void OnInteract(InteractionSystem player)
     {
-        player.AddItem(itemID);
+        player.AddItem(itemID, icon);
         // gameObject.SetActive(false);
         GetComponent<BoxCollider>().enabled = false;
         GetComponent<MeshRenderer>().enabled = false;
